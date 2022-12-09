@@ -13,18 +13,37 @@ public class MainBot
 {
     public static void main(String[] args) throws InterruptedException
     {
-        // all local vars
+        //region vars declaration
+
+        WebDriver webdriver = null;
+        Scanner scanner = null;
+        JavascriptExecutor javascriptExecutor = null;
+        Random random = null;
+        Document parsedWebPage = null;
+        Elements raffleDivs = null;
+        int programIterations = 1;
+
+        //endregion
+
+        // program iterations set
+        System.out.println("Enter number of program iterations(how many times you need to start search and join raffles again)");
+        scanner = new Scanner(System.in);
+        programIterations = scanner.nextInt();
+
+        // chrome webdriver settings
         System.setProperty("webdriver.chrome.driver", "selenium\\chromedriver.exe");
-        WebDriver webdriver = new ChromeDriver();
-        HashMap<String, String> cookies_map = new HashMap<String, String>();
-        ArrayList<Raffle> raffles_list = new ArrayList<>();
-		Scanner scanner = new Scanner(System.in);
-		JavascriptExecutor js_executor = (JavascriptExecutor) webdriver;
-		Random random = new Random();
+
+        try{ webdriver = new ChromeDriver(); }
+        catch (Exception exception)
+        {
+            System.out.println(exception.getMessage());
+            System.exit(0);
+        }
 
         // cookie input
         webdriver.get("https://scrap.tf/raffles/ending");
         webdriver.manage().deleteAllCookies();
+
         System.out.println("__asc:");
         webdriver.manage().addCookie(new Cookie("__asc", scanner.next()));
         System.out.println("__auc:");
@@ -41,47 +60,67 @@ public class MainBot
         webdriver.manage().addCookie(new Cookie("na-unifiedid", scanner.next()));
         System.out.println("scr_session:");
         webdriver.manage().addCookie(new Cookie("scr_session", scanner.next()));
+
         scanner.close();
 
-        // scroll 2 times down
-        webdriver.get("https://scrap.tf/raffles/ending");
-        js_executor.executeScript("window.scrollTo(0, document.body.scrollHeight);");
-        Thread.sleep(4000+random.nextInt(1500));
-        js_executor.executeScript("window.scrollTo(0, document.body.scrollHeight);");
-        Thread.sleep(4000+random.nextInt(1500));
-
-        // parse web browser page
-        Document doc = Jsoup.parse(webdriver.getPageSource());
-        Elements raffles = doc.getElementsByAttributeValue("class", "panel-raffle");
-
-        // each handled <div> gives link to raffle list
-        raffles.forEach(divElement ->
+        // loop
+        while(programIterations >= 1)
         {
-            Element panelHeading = divElement.child(0);
-            Element raffleName = panelHeading.child(0);
-            Element raffleNameLink = raffleName.child(0);
-            String _url = "https://scrap.tf"+raffleNameLink.attr("href");
-            String _title = raffleNameLink.text();
-            raffles_list.add(new Raffle(_url, _title));
-        });
+            // scroll page down until the end
+            javascriptExecutor = (JavascriptExecutor) webdriver;
+            random = new Random();
 
-        // show collected raffles from raffles list
-        System.out.println("ready to join raffles:");
-        raffles_list.forEach(System.out::println);
-        
+            webdriver.get("https://scrap.tf/raffles/ending");
 
-        // enter raffles if possible
-        if(raffles_list.size()>0)
-        {
-            for (int i=0; i<raffles_list.size();i++)
+            boolean isScrolledToBottom = false;
+            do
             {
-                webdriver.get(raffles_list.get(i).url);
-                doc = Jsoup.parse(webdriver.getPageSource());
-                Elements joinButtons = doc.getElementsByAttributeValue("class", "btn btn-embossed btn-info btn-lg");
-                System.out.println("Going execute : "+joinButtons.get(0).attr("onclick"));
-                js_executor.executeScript(joinButtons.get(0).attr("onclick"));
-                Thread.sleep(4000+random.nextInt(1500));
+                isScrolledToBottom = (boolean) javascriptExecutor.executeScript("return ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight)");
+
+                javascriptExecutor.executeScript("window.scrollTo(0, document.body.scrollHeight);");
+                Thread.sleep(4000 + random.nextInt(1500));
             }
+            while(isScrolledToBottom==false);
+
+            // parse web browser page
+            parsedWebPage = Jsoup.parse(webdriver.getPageSource());
+            raffleDivs = parsedWebPage.getElementsByAttributeValue("class", "panel-raffle");
+
+            // each handled <div> gives link to raffles list
+            ArrayList<Raffle> rafflesList = new ArrayList<>();
+
+            raffleDivs.forEach(divElement ->
+            {
+                Element panelHeading = divElement.child(0);
+                Element raffleName = panelHeading.child(0);
+                Element raffleNameLink = raffleName.child(0);
+                String _url = "https://scrap.tf" + raffleNameLink.attr("href");
+                String _title = raffleNameLink.text();
+                rafflesList.add(new Raffle(_url, _title));
+            });
+
+            // show collected raffles from raffles list
+            System.out.println("collected raffles links:");
+            rafflesList.forEach(System.out::println);
+
+            // enter raffles if possible
+            if(rafflesList.size()>0)
+            {
+                for (int i=0; i<rafflesList.size(); i++)
+                {
+                    webdriver.get(rafflesList.get(i).url);
+                    parsedWebPage = Jsoup.parse(webdriver.getPageSource());
+
+                    Elements joinButtons = parsedWebPage.getElementsByAttributeValue("class", "btn btn-embossed btn-info btn-lg");
+
+                    try{ javascriptExecutor.executeScript(joinButtons.get(0).attr("onclick")); }
+                    catch (Exception exception) { System.out.println(exception.getMessage()); }
+                    Thread.sleep(2500 + random.nextInt(3000));
+                }
+            }
+
+            programIterations--;
+
         }
 
 		webdriver.quit();
