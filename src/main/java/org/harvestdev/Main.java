@@ -10,184 +10,154 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.openqa.selenium.chrome.ChromeOptions;
 
+import javax.swing.*;
+import javax.swing.text.DefaultCaret;
+import java.awt.*;
 import java.io.*;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Paths;
 import java.util.*;
 
 public class Main
 {
-    public static void main(String[] args) throws InterruptedException, IOException {
-        //region vars declaration
+    private static final Random random = new Random();
 
-        WebDriver webdriver = null;
-        ChromeOptions options = null;
-        Scanner scanner = null;
-        JavascriptExecutor javascriptExecutor = null;
-        Random random = null;
-        Document parsedWebPage = null;
-        Elements raffleDivs = null;
-        int programIterations = 1;
+    public static void main(String[] args) throws IOException {
 
-        //endregion
+        // extract chromedriver.exe from jar
 
-        //region program iterations set
-
-        System.out.println("Enter number of program iterations(how many times you need to start search and join raffles again)");
-        scanner = new Scanner(System.in);
-        programIterations = scanner.nextInt();
-
-        //endregion
-
-        // region chrome webdriver settings
-
-        URL url = Main.class.getClassLoader().getResource("drivers/chromedriver.exe");
         FileOutputStream output = new FileOutputStream("chromedriver.exe");
-        InputStream input = url.openStream();
+        InputStream input = Objects.requireNonNull(Main.class.getClassLoader()
+                .getResource("drivers/chromedriver.exe")).openStream();
         byte [] buffer = new byte[4096];
         int bytesRead = input.read(buffer);
+
         while (bytesRead != -1) {
             output.write(buffer, 0, bytesRead);
             bytesRead = input.read(buffer);
         }
+
         output.close();
         input.close();
 
         System.setProperty("webdriver.chrome.driver", "chromedriver.exe");
 
-        try
-        {
+        // window setup
+
+        JFrame frame = new JFrame("scrap.tf raffle bot");
+        frame.setSize(512, 256);
+        frame.setResizable(true);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        JPanel panel = new JPanel();
+        JLabel label = new JLabel("scr_session");
+        JTextField textField = new JTextField();
+        textField.setColumns(30);
+        JTextArea textArea = new JTextArea();
+        textArea.setMargin(new Insets(8, 8, 8, 8));
+        textArea.setLineWrap(true);
+        JButton btnLaunch = new JButton("launch");
+        btnLaunch.addActionListener(e -> new Thread(() -> {
+            try {
+                launchBot(textField.getText(), textArea);
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).start());
+        JScrollPane scroll= new JScrollPane(textArea, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        DefaultCaret caret = (DefaultCaret)textArea.getCaret();
+        caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
+
+        panel.add(label);
+        panel.add(textField);
+        panel.add(btnLaunch);
+
+        frame.getContentPane().add(BorderLayout.SOUTH, panel);
+        frame.getContentPane().add(BorderLayout.CENTER, scroll);
+        frame.setVisible(true);
+    }
+
+    public static void launchBot(String sessionCookie, JTextArea out) throws InterruptedException {
+
+        // chromedriver launch
+
+        WebDriver webdriver;
+        ChromeOptions options;
+
+        try {
             options = new ChromeOptions();
             options.addArguments("--remote-allow-origins=*");
             webdriver = new ChromeDriver(options);
-        }
-        catch (Exception exception)
-        {
-            System.out.println(exception.getMessage());
-            System.exit(0);
+        } catch (Exception exception) {
+            JOptionPane.showMessageDialog(null, exception.getMessage(), "Exception", JOptionPane.ERROR_MESSAGE);
+            return;
         }
 
-        //endregion
-
-        // region cookie input
+        // cookie
 
         webdriver.get("https://scrap.tf/raffles/ending");
         webdriver.manage().deleteAllCookies();
+        webdriver.manage().addCookie(new Cookie("scr_session", sessionCookie));
 
-        System.out.println("__asc:");
-        webdriver.manage().addCookie(new Cookie("__asc", scanner.next()));
-        System.out.println("__auc:");
-        webdriver.manage().addCookie(new Cookie("__auc", scanner.next()));
-        System.out.println("__cf_bm:");
-        webdriver.manage().addCookie(new Cookie("__cf_bm", scanner.next()));
-        System.out.println("_ga:");
-        webdriver.manage().addCookie(new Cookie("_ga", scanner.next()));
-        System.out.println("_gid:");
-        webdriver.manage().addCookie(new Cookie("_gid", scanner.next()));
-        System.out.println("_pbjs_userid_consent_data:");
-        webdriver.manage().addCookie(new Cookie("_pbjs_userid_consent_data", scanner.next()));
-        System.out.println("na-unifiedid:");
-        webdriver.manage().addCookie(new Cookie("na-unifiedid", scanner.next()));
-        System.out.println("scr_session:");
-        webdriver.manage().addCookie(new Cookie("scr_session", scanner.next()));
+        // scrolling page until reaching bottom
 
-        scanner.close();
+        JavascriptExecutor jsExecutor = (JavascriptExecutor) webdriver;
 
-        //endregion
+        webdriver.get("https://scrap.tf/raffles/ending");
 
-        // loop
-        while(programIterations >= 1)
-        {
-            //region scroll page down until the end
-            javascriptExecutor = (JavascriptExecutor) webdriver;
-            random = new Random();
+        boolean isScrolledToBottom;
+        do {
+            isScrolledToBottom = Boolean.parseBoolean(jsExecutor.executeScript(
+                    "return ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight)")
+                    .toString());
 
-            webdriver.get("https://scrap.tf/raffles/ending");
+            jsExecutor.executeScript("window.scrollTo(0, document.body.scrollHeight);");
+            Thread.sleep(4000 + random.nextInt(1500));
+        } while(!isScrolledToBottom);
 
-            boolean isScrolledToBottom = false;
-            do
-            {
-                isScrolledToBottom = Boolean.parseBoolean(javascriptExecutor.executeScript("return ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight)").toString());
+        // parse
 
-                javascriptExecutor.executeScript("window.scrollTo(0, document.body.scrollHeight);");
-                Thread.sleep(4000 + random.nextInt(1500));
-            }
-            while(isScrolledToBottom==false);
+        Document parsedWebPage = Jsoup.parse(webdriver.getPageSource());
+        Elements raffleDivs = parsedWebPage.getElementsByAttributeValue("class", "panel-raffle");
 
-            //endregion
+        // each handled <div> gives link to raffles list
 
-            //region parse web browser page
+        ArrayList<String> rafflesList = new ArrayList<>();
 
-            parsedWebPage = Jsoup.parse(webdriver.getPageSource());
-            raffleDivs = parsedWebPage.getElementsByAttributeValue("class", "panel-raffle");
+        for (Element raffleDiv : raffleDivs) {
+            Element panelHeading = raffleDiv.child(0);
+            Element raffleName = panelHeading.child(0);
+            Element raffleNameLink = raffleName.child(0);
+            String link = "https://scrap.tf" + raffleNameLink.attr("href");
+            rafflesList.add(link);
+        }
 
-            //endregion
+        // show collected raffles from raffles list
 
-            //region each handled <div> gives link to raffles list
+        for (String value : rafflesList) {
+            out.setText(out.getText() + "\n" + value);
+        }
 
-            ArrayList<Raffle> rafflesList = new ArrayList<Raffle>();
+        // enter raffles if possible
 
-            for(int i=0;i<raffleDivs.size();i++)
-            {
-                Element panelHeading = raffleDivs.get(i).child(0);
-                Element raffleName = panelHeading.child(0);
-                Element raffleNameLink = raffleName.child(0);
-                String _url = "https://scrap.tf" + raffleNameLink.attr("href");
-                String _title = raffleNameLink.text();
-                rafflesList.add(new Raffle(_url, _title));
-            }
+        if(rafflesList.size()>0) {
+            for (int i = 0; i < rafflesList.size(); i++) {
+                String s = rafflesList.get(i);
+                webdriver.get(s);
+                Thread.sleep(2500 + random.nextInt(3000));
+                parsedWebPage = Jsoup.parse(webdriver.getPageSource());
 
-            //endregion
-
-            // region show collected raffles from raffles list
-
-            System.out.println("collected raffles links:");
-            for(int i=0; i<rafflesList.size(); i++)
-            {
-                System.out.println(rafflesList.get(i).toString());
-            }
-
-            //endregion
-
-            //region enter raffles if possible
-
-            if(rafflesList.size()>0)
-            {
-                for (int i=0; i<rafflesList.size(); i++)
-                {
-                    webdriver.get(rafflesList.get(i).url);
-                    Thread.sleep(2500 + random.nextInt(3000));
-                    parsedWebPage = Jsoup.parse(webdriver.getPageSource());
-
-                    Elements joinButtons = parsedWebPage.getElementsByAttributeValue("class", "btn btn-embossed btn-info btn-lg");
-                    try{ javascriptExecutor.executeScript(joinButtons.get(0).attr("onclick")); }
-                    catch (Exception exception) { System.out.println(exception.getMessage()); }
-                    Thread.sleep(2500 + random.nextInt(3000));
+                Elements joinButtons = parsedWebPage.getElementsByAttributeValue("class", "btn btn-embossed btn-info btn-lg");
+                try {
+                    jsExecutor.executeScript(joinButtons.get(0).attr("onclick"));
+                } catch (Exception exception) {
+                    JOptionPane.showMessageDialog(null, exception.getMessage(), "Exception", JOptionPane.ERROR_MESSAGE);
                 }
+
+                out.setText(out.getText() + "\n" + i + "/" + rafflesList.size());
+                Thread.sleep(2500 + random.nextInt(3000));
             }
-
-            //endregion
-
-            programIterations--;
-
         }
 
         webdriver.quit();
     }
-}
-
-class Raffle
-{
-    public String url = "";
-    public String name = "";
-
-    public Raffle(String url, String name)
-    {
-        this.url = url;
-        this.name = name;
-    }
-
-    @Override
-    public String toString() {return url+" ------- "+name;}
 }
