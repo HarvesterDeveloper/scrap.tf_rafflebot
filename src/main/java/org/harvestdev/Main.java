@@ -25,8 +25,14 @@ public class Main
         // extract chromedriver.exe from jar
 
         FileOutputStream output = new FileOutputStream("chromedriver.exe");
-        InputStream input = Objects.requireNonNull(Main.class.getClassLoader()
-                .getResource("drivers/chromedriver.exe")).openStream();
+        InputStream input;
+        try {
+            input = Main.class.getClassLoader().getResource("chromedriver.exe").openStream();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(null, ex.getMessage(), "Exception", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         byte [] buffer = new byte[4096];
         int bytesRead = input.read(buffer);
 
@@ -139,7 +145,7 @@ public class Main
 
         // enter raffles if possible
 
-        if(rafflesList.size()>0) {
+        if(rafflesList.size() > 0) {
             for (int i = 0; i < rafflesList.size(); i++) {
                 String s = rafflesList.get(i);
                 webdriver.get(s);
