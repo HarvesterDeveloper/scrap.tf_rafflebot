@@ -54,7 +54,7 @@ public class Main
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         JPanel panel = new JPanel();
-        JLabel label = new JLabel("scr_session");
+        JLabel label = new JLabel("scraptf");
         JTextField textField = new JTextField();
         textField.setColumns(30);
         JTextArea textArea = new JTextArea();
@@ -82,7 +82,7 @@ public class Main
         frame.setVisible(true);
     }
 
-    public static void launchBot(String sessionCookie, JTextArea out) throws InterruptedException {
+    public static void launchBot(String scraptfCookie, JTextArea out) throws InterruptedException {
 
         // chromedriver launch
 
@@ -102,7 +102,7 @@ public class Main
 
         webdriver.get("https://scrap.tf/raffles/ending");
         webdriver.manage().deleteAllCookies();
-        webdriver.manage().addCookie(new Cookie("scr_session", sessionCookie));
+        webdriver.manage().addCookie(new Cookie("scraptf", scraptfCookie));
 
         // scrolling page until reaching bottom
 
