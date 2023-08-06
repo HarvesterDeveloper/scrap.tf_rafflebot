@@ -1,3 +1,11 @@
+# End of an era  
+After using for more than a 18 months, this bot become **detected** since august 2023.  
+This means that you'd better not use it without improving!
+
+![detect proof](docs/detected.png "Detected")  
+
+![detect reason](docs/detect_reason.png "Obvious reason")  
+
 # How is it developed?  
 IDE: IntelliJ IDEA 2023.1.1 (Community Edition)  
 SDK: correto-1.8  
